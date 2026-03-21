@@ -12,6 +12,8 @@ load_dotenv()
 if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('OAUTHLIB_INSECURE_TRANSPORT'):
     os.environ['AUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,7 +30,19 @@ from bs4 import BeautifulSoup
 
 # ── 앱 설정 ───────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="자산 트래킹")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    for attempt in range(10):
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("DB 테이블 생성 완료")
+            break
+        except Exception as e:
+            print(f"DB 연결 대기 중... ({attempt + 1}/10): {e}")
+            await asyncio.sleep(3)
+    yield
+
+app = FastAPI(title="자산 트래킹", lifespan=lifespan)
 
 app.add_middleware(
     SessionMiddleware,
@@ -99,9 +113,6 @@ class Stock(Base):
     avg_price = Column(Float)
     avg_price_usd = Column(Float)
     user = relationship('User', back_populates='stocks')
-
-
-Base.metadata.create_all(bind=engine)
 
 
 def get_db():
