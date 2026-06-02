@@ -56,8 +56,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app.mount("/static", StaticFiles(directory=os.path.join(_BASE_DIR, "static")), name="static")
+templates = Jinja2Templates(directory=os.path.join(_BASE_DIR, "templates"))
 
 
 # ── Google OAuth ──────────────────────────────────────────────────────────────
