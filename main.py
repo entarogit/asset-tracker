@@ -238,6 +238,60 @@ def get_exchange_rate() -> float:
 
 # ── 주식 가격 조회 ────────────────────────────────────────────────────────────
 
+def get_price_from_naver(stock_code: str) -> Optional[float]:
+    """네이버 실시간/시간외 API에서 한국 주식 가격 조회"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+        'Accept': 'application/json',
+        'Referer': 'https://m.stock.naver.com/'
+    }
+
+    # 1차: 폴링 API (시간외 포함)
+    try:
+        resp = http_requests.get(
+            f'https://polling.finance.naver.com/api/realtime/domestic/stock/{stock_code}',
+            headers=headers, timeout=8
+        )
+        if resp.status_code == 200:
+            item = resp.json().get('datas', [{}])[0]
+            # 시간외 단일가 우선 확인
+            ot = item.get('overTimeClosePriceInfo') or item.get('overTimeInfo') or {}
+            ot_price = ot.get('closePrice') or ot.get('price', '')
+            if ot_price:
+                return float(str(ot_price).replace(',', ''))
+            # 일반 현재가(종가)
+            price = item.get('closePrice', '')
+            if price:
+                return float(str(price).replace(',', ''))
+    except Exception as e:
+        print(f"[Naver 폴링] {stock_code}: {e}")
+
+    # 2차: 모바일 기본 API
+    try:
+        resp = http_requests.get(
+            f'https://m.stock.naver.com/api/stock/{stock_code}/basic',
+            headers=headers, timeout=8
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            for ot_key in ['overTimeInfo', 'overTimeClosePriceInfo']:
+                ot = data.get(ot_key) or {}
+                for pk in ['closePrice', 'price', 'overTimePrice']:
+                    p = ot.get(pk, '')
+                    if p:
+                        try:
+                            return float(str(p).replace(',', ''))
+                        except (ValueError, TypeError):
+                            pass
+            price = data.get('closePrice', '')
+            if price:
+                return float(str(price).replace(',', ''))
+    except Exception as e:
+        print(f"[Naver 모바일] {stock_code}: {e}")
+
+    return None
+
+
 def get_price_from_google_finance(stock_code: str) -> Optional[float]:
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
@@ -314,10 +368,17 @@ def get_stock_price(symbol: str, is_us: bool = False) -> dict:
         if not stock_code:
             return {"error": f"'{symbol}' 종목을 찾을 수 없습니다."}
 
+        # 1순위: 네이버 API (시간외 포함)
+        naver_price = get_price_from_naver(stock_code)
+        if naver_price:
+            return {"symbol": symbol, "price": naver_price, "currency": "KRW"}
+
+        # 2순위: 구글 파이낸스
         google_price = get_price_from_google_finance(stock_code)
         if google_price:
             return {"symbol": symbol, "price": google_price, "currency": "KRW"}
 
+        # 3순위: 다음 파이낸스
         req_headers = {**headers, 'Referer': 'https://finance.daum.net/', 'Accept': 'application/json'}
         resp = http_requests.get(f'https://finance.daum.net/api/quotes/A{stock_code}', headers=req_headers)
         if resp.status_code == 200:

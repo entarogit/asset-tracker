@@ -48,13 +48,13 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-// 숫자를 미국 달러 형식으로 포맷
+// 숫자를 미국 달러 형식으로 포맷 (소수점 최대 4자리)
 function formatUSD(amount) {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        maximumFractionDigits: 4
     }).format(amount);
 }
 
@@ -175,7 +175,7 @@ function displayPortfolio(data) {
                     <div class="detail-item">
                         <div class="detail-label">평단가</div>
                         <div class="detail-value view-only">${isUS ? formatUSD(avgPrice) : formatCurrency(avgPrice)}</div>
-                        <input class="edit-only detail-input" id="edit-avg-${stock.db_id}" type="number" value="${avgPrice}" step="${isUS ? '0.01' : '1'}" min="0" style="display:none;">
+                        <input class="edit-only detail-input" id="edit-avg-${stock.db_id}" type="number" value="${avgPrice}" step="${isUS ? '0.0001' : '1'}" min="0" style="display:none;">
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">보유수량</div>
