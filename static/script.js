@@ -154,7 +154,7 @@ function displayPortfolio(data) {
             : (currentPrice * stock.quantity);
 
         return `
-            <div class="stock-card">
+            <div class="stock-card" id="stock-card-${stock.db_id}">
                 <div class="stock-header">
                     <div class="stock-info">
                         <h3>${stock.symbol}</h3>
@@ -162,7 +162,10 @@ function displayPortfolio(data) {
                             ${isUS ? '🇺🇸 미국' : '🇰🇷 한국'}
                         </span>
                     </div>
-                    <button onclick="deleteStock(${stock.db_id}, '${stock.symbol}')" class="btn btn-danger delete-btn">삭제</button>
+                    <div class="card-actions">
+                        <button onclick="toggleEditStock(${stock.db_id})" class="btn btn-secondary edit-btn" id="edit-btn-${stock.db_id}">수정</button>
+                        <button onclick="deleteStock(${stock.db_id}, '${stock.symbol}')" class="btn btn-danger delete-btn">삭제</button>
+                    </div>
                 </div>
                 <div class="stock-details">
                     <div class="detail-item">
@@ -171,11 +174,13 @@ function displayPortfolio(data) {
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">평단가</div>
-                        <div class="detail-value">${isUS ? formatUSD(avgPrice) : formatCurrency(avgPrice)}</div>
+                        <div class="detail-value view-only">${isUS ? formatUSD(avgPrice) : formatCurrency(avgPrice)}</div>
+                        <input class="edit-only detail-input" id="edit-avg-${stock.db_id}" type="number" value="${avgPrice}" step="${isUS ? '0.01' : '1'}" min="0" style="display:none;">
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">보유수량</div>
-                        <div class="detail-value">${stock.quantity.toLocaleString()}주</div>
+                        <div class="detail-value view-only">${stock.quantity.toLocaleString()}주</div>
+                        <input class="edit-only detail-input" id="edit-qty-${stock.db_id}" type="number" value="${stock.quantity}" step="0.001" min="0.001" style="display:none;">
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">평가금액</div>
@@ -293,6 +298,51 @@ async function addStock() {
             await Promise.all([loadPortfolio(), loadAssetSummary(), loadExchangeRate()]);
         } else {
             showNotification(data.error || '주식 추가에 실패했습니다.', 'error');
+        }
+    } catch (error) {
+        showNotification('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 주식 수정 모드 토글
+function toggleEditStock(stockId) {
+    const card = document.getElementById(`stock-card-${stockId}`);
+    const editBtn = document.getElementById(`edit-btn-${stockId}`);
+    if (card.classList.contains('editing')) {
+        saveStock(stockId);
+    } else {
+        card.classList.add('editing');
+        editBtn.textContent = '완료';
+        editBtn.classList.replace('btn-secondary', 'btn-success');
+        card.querySelectorAll('.view-only').forEach(el => el.style.display = 'none');
+        card.querySelectorAll('.edit-only').forEach(el => el.style.removeProperty('display'));
+        document.getElementById(`edit-avg-${stockId}`).focus();
+    }
+}
+
+// 주식 평단가/수량 저장
+async function saveStock(stockId) {
+    const newAvgPrice = parseFloat(document.getElementById(`edit-avg-${stockId}`).value);
+    const newQty = parseFloat(document.getElementById(`edit-qty-${stockId}`).value);
+    if (isNaN(newAvgPrice) || newAvgPrice <= 0) { showNotification('올바른 평단가를 입력해주세요.', 'error'); return; }
+    if (isNaN(newQty) || newQty <= 0) { showNotification('올바른 수량을 입력해주세요.', 'error'); return; }
+
+    showLoading();
+    try {
+        const response = await fetch(`/api/portfolio/${stockId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ avg_price: newAvgPrice, quantity: newQty })
+        });
+        if (handleAuthError(response)) return;
+        const data = await response.json();
+        if (response.ok) {
+            showNotification('주식 정보가 업데이트되었습니다.', 'success');
+            await Promise.all([loadPortfolio(), loadAssetSummary()]);
+        } else {
+            showNotification(data.error || '업데이트에 실패했습니다.', 'error');
         }
     } catch (error) {
         showNotification('네트워크 오류가 발생했습니다.', 'error');

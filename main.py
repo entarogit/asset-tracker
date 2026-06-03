@@ -345,6 +345,11 @@ class CashUpdate(BaseModel):
     cash_usd: Optional[float] = None
 
 
+class StockUpdate(BaseModel):
+    quantity: Optional[float] = None
+    avg_price: Optional[float] = None
+
+
 # ── 페이지 라우트 ─────────────────────────────────────────────────────────────
 
 @app.get('/')
@@ -562,6 +567,27 @@ def add_stock(
     db.add(new_stock)
     db.commit()
     return {"message": "주식이 추가되었습니다", "merged": False}
+
+
+@app.patch('/api/portfolio/{stock_id}')
+def update_stock(
+    stock_id: int,
+    data: StockUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    stock = db.query(Stock).filter(Stock.id == stock_id, Stock.user_id == current_user.id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail={"error": "주식을 찾을 수 없습니다"})
+    if data.quantity is not None:
+        stock.quantity = data.quantity
+    if data.avg_price is not None:
+        if stock.market == 'us':
+            stock.avg_price_usd = data.avg_price
+        else:
+            stock.avg_price = data.avg_price
+    db.commit()
+    return {"message": f"{stock.symbol} 정보가 업데이트되었습니다"}
 
 
 @app.delete('/api/portfolio/{stock_id}')
