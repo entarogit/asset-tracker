@@ -1,5 +1,5 @@
 // 전역 변수
-let portfolio = { stocks: [], cash: 0 };
+let portfolio = { stocks: [], cash: 0, cash_usd: 0 };
 let isLoading = false;
 let currentExchangeRate = 1320;
 
@@ -101,8 +101,9 @@ async function loadPortfolio() {
         const data = await response.json();
         if (response.ok) {
             portfolio = data;
+            portfolio.cash_usd = data.cash_usd || 0;
             displayPortfolio(data);
-            updateCashDisplay(data.cash);
+            updateCashDisplay(data.cash, data.cash_usd || 0);
         } else {
             showNotification('포트폴리오를 불러오는데 실패했습니다.', 'error');
         }
@@ -193,10 +194,15 @@ function displayPortfolio(data) {
     }).join('');
 }
 
-// 현금 표시 업데이트
-function updateCashDisplay(cash) {
-    document.getElementById('cash-amount').textContent = formatCurrency(cash);
-    document.getElementById('cash-input').value = cash;
+// 현금 표시 업데이트 (관리 섹션 현황)
+function updateCashDisplay(cashKrw, cashUsd) {
+    const krw = cashKrw || 0;
+    const usd = cashUsd || 0;
+    document.getElementById('current-cash-krw').textContent = formatCurrency(krw);
+    document.getElementById('current-cash-usd').textContent = formatUSD(usd);
+    const usdInKrw = usd * currentExchangeRate;
+    document.getElementById('current-cash-usd-krw').textContent =
+        usd > 0 ? `≈ ${formatCurrency(usdInKrw)}` : '';
 }
 
 // 자산 요약 로드
@@ -206,10 +212,16 @@ async function loadAssetSummary() {
         if (handleAuthError(response)) return;
         const data = await response.json();
         if (response.ok) {
-            portfolio.cash = data.cash;
+            portfolio.cash = data.cash_krw ?? data.cash ?? 0;
+            portfolio.cash_usd = data.cash_usd || 0;
             document.getElementById('total-asset').textContent = formatCurrency(data.total_asset);
             document.getElementById('stock-value').textContent = formatCurrency(data.total_stock_value);
             document.getElementById('cash-amount').textContent = formatCurrency(data.cash);
+            // 예수금 카드 원화/달러 구성 표시
+            document.getElementById('cash-krw-display').textContent = formatCurrency(data.cash_krw || 0);
+            document.getElementById('cash-usd-display').textContent = formatUSD(data.cash_usd || 0);
+            // 관리 섹션 현황 갱신
+            updateCashDisplay(data.cash_krw || 0, data.cash_usd || 0);
             const totalProfitElement = document.getElementById('total-profit-loss');
             totalProfitElement.textContent = formatCurrency(data.total_profit_loss);
             totalProfitElement.className = `amount profit-loss ${data.total_profit_loss >= 0 ? 'positive' : 'negative'}`;
@@ -327,20 +339,24 @@ function parseCashInput(value) {
     return { mode, amount };
 }
 
-// 예수금 서버 업데이트 공통 함수
-async function setCash(amount) {
+// 예수금 서버 업데이트 공통 함수 (cash_krw, cash_usd 중 하나 또는 둘 다 전달)
+async function setCash(cashKrw, cashUsd) {
     if (isLoading) return;
     showLoading();
     try {
+        const body = {};
+        if (cashKrw !== undefined && cashKrw !== null) body.cash_krw = cashKrw;
+        if (cashUsd !== undefined && cashUsd !== null) body.cash_usd = cashUsd;
         const response = await fetch('/api/cash', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cash: amount })
+            body: JSON.stringify(body)
         });
         if (handleAuthError(response)) return;
         const data = await response.json();
         if (response.ok) {
-            portfolio.cash = amount;
+            if (cashKrw !== undefined && cashKrw !== null) portfolio.cash = cashKrw;
+            if (cashUsd !== undefined && cashUsd !== null) portfolio.cash_usd = cashUsd;
             showNotification('예수금이 업데이트되었습니다.', 'success');
             await Promise.all([loadAssetSummary(), loadExchangeRate()]);
         } else {
@@ -362,30 +378,27 @@ async function updateCashKRW() {
                : parsed.mode === 'sub' ? current - parsed.amount
                : parsed.amount;
     if (next < 0) { showNotification('예수금은 0원 미만이 될 수 없습니다.', 'error'); return; }
-    await setCash(Math.round(next));
+    await setCash(Math.round(next), undefined);
     document.getElementById('cash-input-krw').value = '';
 }
 
-// 달러 예수금 업데이트 (환율 자동 변환)
+// 달러 예수금 업데이트 (USD로 별도 저장, 합산 시 환율 적용)
 async function updateCashUSD() {
     const parsed = parseCashInput(document.getElementById('cash-input-usd').value);
     if (!parsed) { showNotification('+금액, -금액 또는 숫자를 입력해주세요.', 'error'); return; }
-    const krwAmount = Math.round(parsed.amount * currentExchangeRate);
-    const current = portfolio.cash || 0;
-    const next = parsed.mode === 'add' ? current + krwAmount
-               : parsed.mode === 'sub' ? current - krwAmount
-               : krwAmount;
-    if (next < 0) { showNotification('예수금은 0원 미만이 될 수 없습니다.', 'error'); return; }
-    const msg = `$${parsed.amount.toLocaleString()} → ${formatCurrency(krwAmount)} 변환 적용`;
-    await setCash(next);
-    if (next >= 0) showNotification(msg, 'info');
+    const current = portfolio.cash_usd || 0;
+    const next = parsed.mode === 'add' ? current + parsed.amount
+               : parsed.mode === 'sub' ? current - parsed.amount
+               : parsed.amount;
+    if (next < 0) { showNotification('달러 예수금은 $0 미만이 될 수 없습니다.', 'error'); return; }
+    await setCash(undefined, next);
     document.getElementById('cash-input-usd').value = '';
 }
 
-// 예수금 초기화
+// 예수금 전체 초기화
 async function resetCash() {
-    if (!confirm('예수금을 0원으로 초기화하시겠습니까?')) return;
-    await setCash(0);
+    if (!confirm('원화/달러 예수금을 모두 0으로 초기화하시겠습니까?')) return;
+    await setCash(0, 0);
 }
 
 // 포트폴리오 새로고침

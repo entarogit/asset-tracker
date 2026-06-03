@@ -39,6 +39,10 @@
                 <div class="summary-card">
                     <h3>예수금</h3>
                     <p class="amount" id="cash-amount">₩0</p>
+                    <div class="cash-breakdown">
+                        <span>원화 <strong id="cash-krw-display">₩0</strong></span>
+                        <span>달러 <strong id="cash-usd-display">$0</strong></span>
+                    </div>
                 </div>
                 <div class="summary-card">
                     <h3>총 손익</h3>
@@ -58,6 +62,17 @@
         <!-- 예수금 입력 섹션 -->
         <section class="cash-section">
             <h2>💰 예수금 관리</h2>
+            <div class="cash-current-display">
+                <div class="cash-current-item">
+                    <span class="cash-current-label">보유 원화</span>
+                    <span class="cash-current-value" id="current-cash-krw">₩0</span>
+                </div>
+                <div class="cash-current-item">
+                    <span class="cash-current-label">보유 달러</span>
+                    <span class="cash-current-value" id="current-cash-usd">$0</span>
+                    <span class="cash-current-sub" id="current-cash-usd-krw"></span>
+                </div>
+            </div>
             <div class="cash-fields">
                 <div class="cash-field-group">
                     <label for="cash-input-krw">원화 (KRW)</label>

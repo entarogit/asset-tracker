@@ -21,7 +21,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, text
 from sqlalchemy.orm import DeclarativeBase, relationship, Session, sessionmaker
 from pydantic import BaseModel
 import requests as http_requests
@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
     for attempt in range(10):
         try:
             Base.metadata.create_all(bind=engine)
+            with engine.connect() as conn:
+                try:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN cash_usd FLOAT DEFAULT 0.0"))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
             print("DB 테이블 생성 완료")
             break
         except Exception as e:
@@ -99,7 +105,8 @@ class User(Base):
     email = Column(String(200), nullable=False)
     name = Column(String(200))
     picture = Column(String(500))
-    cash = Column(Float, default=0.0)
+    cash = Column(Float, default=0.0)      # KRW 예수금
+    cash_usd = Column(Float, default=0.0)  # USD 예수금
     created_at = Column(DateTime, default=datetime.utcnow)
     stocks = relationship('Stock', back_populates='user', cascade='all, delete-orphan')
 
@@ -334,7 +341,8 @@ class StockCreate(BaseModel):
 
 
 class CashUpdate(BaseModel):
-    cash: float
+    cash_krw: Optional[float] = None
+    cash_usd: Optional[float] = None
 
 
 # ── 페이지 라우트 ─────────────────────────────────────────────────────────────
@@ -507,7 +515,7 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
 
         stocks_data.append(item)
 
-    return {'stocks': stocks_data, 'cash': user.cash}
+    return {'stocks': stocks_data, 'cash': user.cash or 0.0, 'cash_usd': user.cash_usd or 0.0}
 
 
 @app.post('/api/portfolio')
@@ -578,7 +586,10 @@ def update_cash(
     db: Session = Depends(get_db)
 ):
     user = db.query(User).filter(User.id == current_user.id).first()
-    user.cash = data.cash
+    if data.cash_krw is not None:
+        user.cash = data.cash_krw
+    if data.cash_usd is not None:
+        user.cash_usd = data.cash_usd
     db.commit()
     return {"message": "예수금이 업데이트되었습니다"}
 
@@ -617,10 +628,18 @@ def get_asset_summary(current_user: User = Depends(get_current_user), db: Sessio
 
     total_profit_rate = (total_profit_loss / total_cost * 100) if total_cost > 0 else 0
 
+    cash_krw = user.cash or 0.0
+    cash_usd = user.cash_usd or 0.0
+    cash_usd_in_krw = cash_usd * current_rate
+    total_cash = cash_krw + cash_usd_in_krw
+
     return {
         "total_stock_value": total_stock_value,
-        "cash": user.cash,
-        "total_asset": total_stock_value + user.cash,
+        "cash": total_cash,
+        "cash_krw": cash_krw,
+        "cash_usd": cash_usd,
+        "cash_usd_in_krw": cash_usd_in_krw,
+        "total_asset": total_stock_value + total_cash,
         "total_profit_loss": total_profit_loss,
         "total_profit_rate": total_profit_rate,
         "exchange_rate": current_rate

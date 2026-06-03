@@ -431,6 +431,50 @@ section h2 {
     color: #718096;
 }
 
+/* 예수금 현황 표시 */
+.cash-breakdown {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.8rem;
+    opacity: 0.88;
+}
+
+.cash-current-display {
+    display: flex;
+    gap: 30px;
+    background: #f7f8fc;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+}
+
+.cash-current-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.cash-current-label {
+    font-size: 0.8rem;
+    color: #718096;
+    font-weight: 500;
+}
+
+.cash-current-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.cash-current-sub {
+    font-size: 0.78rem;
+    color: #a0aec0;
+}
+
 .add-stock-form {
     display: flex;
     flex-direction: column;
