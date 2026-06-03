@@ -238,13 +238,19 @@ def get_exchange_rate() -> float:
 
 # ── 주식 가격 조회 ────────────────────────────────────────────────────────────
 
-def get_price_from_naver(stock_code: str) -> Optional[float]:
-    """네이버 실시간/시간외 API에서 한국 주식 가격 조회"""
+def get_price_from_naver(stock_code: str) -> Optional[dict]:
+    """네이버 실시간/시간외 API에서 한국 주식 가격+등락률 조회"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
         'Accept': 'application/json',
         'Referer': 'https://m.stock.naver.com/'
     }
+
+    def _f(val) -> Optional[float]:
+        try:
+            return float(str(val).replace(',', '').replace('%', ''))
+        except (ValueError, TypeError):
+            return None
 
     # 1차: 폴링 API (시간외 포함)
     try:
@@ -254,15 +260,15 @@ def get_price_from_naver(stock_code: str) -> Optional[float]:
         )
         if resp.status_code == 200:
             item = resp.json().get('datas', [{}])[0]
-            # 시간외 단일가 우선 확인
             ot = item.get('overTimeClosePriceInfo') or item.get('overTimeInfo') or {}
-            ot_price = ot.get('closePrice') or ot.get('price', '')
+            ot_price = _f(ot.get('closePrice') or ot.get('price', ''))
             if ot_price:
-                return float(str(ot_price).replace(',', ''))
-            # 일반 현재가(종가)
-            price = item.get('closePrice', '')
+                rate = _f(ot.get('fluctuationsRatio', item.get('fluctuationsRatio', 0)))
+                return {"price": ot_price, "change_rate": rate or 0}
+            price = _f(item.get('closePrice', ''))
             if price:
-                return float(str(price).replace(',', ''))
+                rate = _f(item.get('fluctuationsRatio', 0))
+                return {"price": price, "change_rate": rate or 0}
     except Exception as e:
         print(f"[Naver 폴링] {stock_code}: {e}")
 
@@ -277,15 +283,14 @@ def get_price_from_naver(stock_code: str) -> Optional[float]:
             for ot_key in ['overTimeInfo', 'overTimeClosePriceInfo']:
                 ot = data.get(ot_key) or {}
                 for pk in ['closePrice', 'price', 'overTimePrice']:
-                    p = ot.get(pk, '')
+                    p = _f(ot.get(pk, ''))
                     if p:
-                        try:
-                            return float(str(p).replace(',', ''))
-                        except (ValueError, TypeError):
-                            pass
-            price = data.get('closePrice', '')
+                        rate = _f(ot.get('fluctuationsRatio', data.get('fluctuationsRatio', 0)))
+                        return {"price": p, "change_rate": rate or 0}
+            price = _f(data.get('closePrice', ''))
             if price:
-                return float(str(price).replace(',', ''))
+                rate = _f(data.get('fluctuationsRatio', 0))
+                return {"price": price, "change_rate": rate or 0}
     except Exception as e:
         print(f"[Naver 모바일] {stock_code}: {e}")
 
@@ -327,12 +332,15 @@ def get_stock_price(symbol: str, is_us: bool = False) -> dict:
                 if resp.status_code == 200:
                     data = resp.json()
                     if data['chart']['result']:
-                        price = float(data['chart']['result'][0]['meta']['regularMarketPrice'])
+                        meta = data['chart']['result'][0]['meta']
+                        price = float(meta['regularMarketPrice'])
+                        change_rate = float(meta.get('regularMarketChangePercent', 0))
                         usd_krw = get_exchange_rate()
                         return {
                             "symbol": symbol, "price_usd": price,
                             "price_krw": price * usd_krw,
-                            "exchange_rate": usd_krw, "currency": "USD"
+                            "exchange_rate": usd_krw, "currency": "USD",
+                            "change_rate": change_rate
                         }
             except Exception:
                 pass
@@ -369,14 +377,15 @@ def get_stock_price(symbol: str, is_us: bool = False) -> dict:
             return {"error": f"'{symbol}' 종목을 찾을 수 없습니다."}
 
         # 1순위: 네이버 API (시간외 포함)
-        naver_price = get_price_from_naver(stock_code)
-        if naver_price:
-            return {"symbol": symbol, "price": naver_price, "currency": "KRW"}
+        naver_result = get_price_from_naver(stock_code)
+        if naver_result:
+            return {"symbol": symbol, "price": naver_result["price"], "currency": "KRW",
+                    "change_rate": naver_result.get("change_rate", 0)}
 
         # 2순위: 구글 파이낸스
         google_price = get_price_from_google_finance(stock_code)
         if google_price:
-            return {"symbol": symbol, "price": google_price, "currency": "KRW"}
+            return {"symbol": symbol, "price": google_price, "currency": "KRW", "change_rate": 0}
 
         # 3순위: 다음 파이낸스
         req_headers = {**headers, 'Referer': 'https://finance.daum.net/', 'Accept': 'application/json'}
@@ -384,7 +393,7 @@ def get_stock_price(symbol: str, is_us: bool = False) -> dict:
         if resp.status_code == 200:
             data = resp.json()
             if 'tradePrice' in data:
-                return {"symbol": symbol, "price": float(data['tradePrice']), "currency": "KRW"}
+                return {"symbol": symbol, "price": float(data['tradePrice']), "currency": "KRW", "change_rate": 0}
 
         return {"error": f"'{symbol}' 종목의 가격 정보를 가져올 수 없습니다."}
 
@@ -561,6 +570,7 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
         }
 
         if 'error' not in price_info:
+            item['change_rate'] = price_info.get('change_rate', 0)
             if is_us:
                 item['current_price_usd'] = price_info['price_usd']
                 item['current_price_krw'] = price_info['price_krw']

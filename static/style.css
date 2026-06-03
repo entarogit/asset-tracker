@@ -666,10 +666,21 @@ input:focus, select:focus {
     align-items: center;
 }
 
-.edit-btn, .delete-btn {
+.edit-btn, .delete-btn, .btn-chart {
     padding: 6px 12px;
     font-size: 0.8rem;
     min-width: auto;
+}
+
+.btn-chart {
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    color: white;
+}
+
+.change-rate {
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-top: 2px;
 }
 
 .detail-input {

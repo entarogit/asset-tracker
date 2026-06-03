@@ -149,6 +149,8 @@ function displayPortfolio(data) {
         const profitLossKRW = isUS ? stock.profit_loss_krw : stock.profit_loss;
         const profitRate = stock.profit_rate || 0;
         const profitClass = profitRate >= 0 ? 'positive' : 'negative';
+        const changeRate = stock.change_rate || 0;
+        const changeClass = changeRate >= 0 ? 'positive' : 'negative';
         const evaluationKRW = isUS
             ? (stock.current_price_krw * stock.quantity)
             : (currentPrice * stock.quantity);
@@ -163,6 +165,7 @@ function displayPortfolio(data) {
                         </span>
                     </div>
                     <div class="card-actions">
+                        <button onclick="openChart('${stock.symbol}', '${stock.market}')" class="btn btn-chart">차트</button>
                         <button onclick="toggleEditStock(${stock.db_id})" class="btn btn-secondary edit-btn" id="edit-btn-${stock.db_id}">수정</button>
                         <button onclick="deleteStock(${stock.db_id}, '${stock.symbol}')" class="btn btn-danger delete-btn">삭제</button>
                     </div>
@@ -171,6 +174,7 @@ function displayPortfolio(data) {
                     <div class="detail-item">
                         <div class="detail-label">현재가</div>
                         <div class="detail-value">${isUS ? formatUSD(currentPrice) : formatCurrency(currentPrice)}</div>
+                        ${changeRate !== 0 ? `<div class="change-rate profit-loss ${changeClass}">${formatPercent(changeRate)}</div>` : ''}
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">평단가</div>
@@ -304,6 +308,19 @@ async function addStock() {
     } finally {
         showLoading(false);
     }
+}
+
+// 차트 페이지 열기
+function openChart(symbol, market) {
+    let url;
+    if (market === 'us') {
+        url = `https://finance.yahoo.com/chart/${encodeURIComponent(symbol)}`;
+    } else if (/^\d{6}$/.test(symbol)) {
+        url = `https://finance.naver.com/item/main.naver?code=${symbol}`;
+    } else {
+        url = `https://search.naver.com/search.naver?query=${encodeURIComponent(symbol + ' 주가차트')}`;
+    }
+    window.open(url, '_blank');
 }
 
 // 주식 수정 모드 토글
