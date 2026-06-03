@@ -27,6 +27,14 @@ from pydantic import BaseModel
 import requests as http_requests
 from bs4 import BeautifulSoup
 
+try:
+    from yfinance.data import YfData as _YfData
+    _yf_data = _YfData()
+    HAS_YFINANCE = True
+except Exception:
+    _yf_data = None
+    HAS_YFINANCE = False
+
 
 # ── 앱 설정 ───────────────────────────────────────────────────────────────────
 
@@ -320,10 +328,39 @@ def get_price_from_google_finance(stock_code: str) -> Optional[float]:
     return None
 
 
+def _get_us_price_yf(symbol: str):
+    """yfinance v10 quoteSummary로 미국 주식 가격과 등락률 조회"""
+    if not HAS_YFINANCE or _yf_data is None:
+        return None, 0
+    try:
+        result = _yf_data.get_raw_json(
+            f'https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}',
+            params={'modules': 'price'}
+        )
+        price_data = result.get('quoteSummary', {}).get('result', [{}])[0].get('price', {})
+        price = price_data.get('regularMarketPrice', {}).get('raw')
+        change_rate_raw = price_data.get('regularMarketChangePercent', {}).get('raw')
+        if price and change_rate_raw is not None:
+            return float(price), float(change_rate_raw) * 100
+    except Exception as e:
+        print(f"[yfinance v10] {symbol}: {e}")
+    return None, 0
+
+
 def get_stock_price(symbol: str, is_us: bool = False) -> dict:
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
         if is_us:
+            price, change_rate = _get_us_price_yf(symbol)
+            if price:
+                usd_krw = get_exchange_rate()
+                return {
+                    "symbol": symbol, "price_usd": price,
+                    "price_krw": price * usd_krw,
+                    "exchange_rate": usd_krw, "currency": "USD",
+                    "change_rate": change_rate
+                }
+            # 폴백: v8 차트 API
             try:
                 resp = http_requests.get(
                     f'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}',
@@ -334,13 +371,12 @@ def get_stock_price(symbol: str, is_us: bool = False) -> dict:
                     if data['chart']['result']:
                         meta = data['chart']['result'][0]['meta']
                         price = float(meta['regularMarketPrice'])
-                        change_rate = float(meta.get('regularMarketChangePercent', 0))
                         usd_krw = get_exchange_rate()
                         return {
                             "symbol": symbol, "price_usd": price,
                             "price_krw": price * usd_krw,
                             "exchange_rate": usd_krw, "currency": "USD",
-                            "change_rate": change_rate
+                            "change_rate": 0
                         }
             except Exception:
                 pass
