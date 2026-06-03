@@ -1,6 +1,7 @@
 // 전역 변수
 let portfolio = { stocks: [], cash: 0 };
 let isLoading = false;
+let currentExchangeRate = 1320;
 
 // 자동완성 상태
 let acIndex = -1;
@@ -205,6 +206,7 @@ async function loadAssetSummary() {
         if (handleAuthError(response)) return;
         const data = await response.json();
         if (response.ok) {
+            portfolio.cash = data.cash;
             document.getElementById('total-asset').textContent = formatCurrency(data.total_asset);
             document.getElementById('stock-value').textContent = formatCurrency(data.total_stock_value);
             document.getElementById('cash-amount').textContent = formatCurrency(data.cash);
@@ -224,6 +226,7 @@ async function loadAssetSummary() {
 
 // 환율 정보 표시 업데이트
 function updateExchangeRateDisplay(rate, cached = false, cacheAge = 0) {
+    currentExchangeRate = rate;
     const rateElement = document.getElementById('exchange-rate');
     const statusElement = document.getElementById('exchange-status');
     rateElement.textContent = `₩${rate.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -311,22 +314,33 @@ async function deleteStock(stockId, symbol) {
     }
 }
 
-// 예수금 업데이트
-async function updateCash() {
-    if (isLoading) return;
-    const cashAmount = parseFloat(document.getElementById('cash-input').value) || 0;
-    if (cashAmount < 0) { showNotification('예수금은 0원 이상이어야 합니다.', 'error'); return; }
+// 예수금 입력값 파싱: +금액(추가), -금액(차감), 숫자만(절대값)
+function parseCashInput(value) {
+    const str = value.trim();
+    if (!str) return null;
+    let mode = 'set';
+    let numStr = str;
+    if (str.startsWith('+')) { mode = 'add'; numStr = str.slice(1); }
+    else if (str.startsWith('-')) { mode = 'sub'; numStr = str.slice(1); }
+    const amount = parseFloat(numStr.replace(/,/g, ''));
+    if (isNaN(amount) || amount < 0) return null;
+    return { mode, amount };
+}
 
+// 예수금 서버 업데이트 공통 함수
+async function setCash(amount) {
+    if (isLoading) return;
     showLoading();
     try {
         const response = await fetch('/api/cash', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cash: cashAmount })
+            body: JSON.stringify({ cash: amount })
         });
         if (handleAuthError(response)) return;
         const data = await response.json();
         if (response.ok) {
+            portfolio.cash = amount;
             showNotification('예수금이 업데이트되었습니다.', 'success');
             await Promise.all([loadAssetSummary(), loadExchangeRate()]);
         } else {
@@ -337,6 +351,41 @@ async function updateCash() {
     } finally {
         showLoading(false);
     }
+}
+
+// 원화 예수금 업데이트
+async function updateCashKRW() {
+    const parsed = parseCashInput(document.getElementById('cash-input-krw').value);
+    if (!parsed) { showNotification('+금액, -금액 또는 숫자를 입력해주세요.', 'error'); return; }
+    const current = portfolio.cash || 0;
+    const next = parsed.mode === 'add' ? current + parsed.amount
+               : parsed.mode === 'sub' ? current - parsed.amount
+               : parsed.amount;
+    if (next < 0) { showNotification('예수금은 0원 미만이 될 수 없습니다.', 'error'); return; }
+    await setCash(Math.round(next));
+    document.getElementById('cash-input-krw').value = '';
+}
+
+// 달러 예수금 업데이트 (환율 자동 변환)
+async function updateCashUSD() {
+    const parsed = parseCashInput(document.getElementById('cash-input-usd').value);
+    if (!parsed) { showNotification('+금액, -금액 또는 숫자를 입력해주세요.', 'error'); return; }
+    const krwAmount = Math.round(parsed.amount * currentExchangeRate);
+    const current = portfolio.cash || 0;
+    const next = parsed.mode === 'add' ? current + krwAmount
+               : parsed.mode === 'sub' ? current - krwAmount
+               : krwAmount;
+    if (next < 0) { showNotification('예수금은 0원 미만이 될 수 없습니다.', 'error'); return; }
+    const msg = `$${parsed.amount.toLocaleString()} → ${formatCurrency(krwAmount)} 변환 적용`;
+    await setCash(next);
+    if (next >= 0) showNotification(msg, 'info');
+    document.getElementById('cash-input-usd').value = '';
+}
+
+// 예수금 초기화
+async function resetCash() {
+    if (!confirm('예수금을 0원으로 초기화하시겠습니까?')) return;
+    await setCash(0);
 }
 
 // 포트폴리오 새로고침
@@ -361,9 +410,13 @@ document.addEventListener('keypress', function(event) {
             event.preventDefault();
             addStock();
         }
-        if (event.target.id === 'cash-input') {
+        if (event.target.id === 'cash-input-krw') {
             event.preventDefault();
-            updateCash();
+            updateCashKRW();
+        }
+        if (event.target.id === 'cash-input-usd') {
+            event.preventDefault();
+            updateCashUSD();
         }
     }
 });

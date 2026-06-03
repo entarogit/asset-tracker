@@ -395,10 +395,40 @@ section h2 {
 }
 
 /* 폼 스타일 */
-.cash-input-group {
+.cash-fields {
     display: flex;
     gap: 15px;
-    align-items: end;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.cash-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.cash-field-group label {
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 0.9rem;
+}
+
+.cash-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+.cash-input-row input {
+    flex: 1;
+}
+
+.cash-hint {
+    margin-top: 12px;
+    font-size: 0.82rem;
+    color: #718096;
 }
 
 .add-stock-form {
@@ -696,9 +726,12 @@ input:focus, select:focus {
         margin-bottom: 20px;
     }
     
-    .cash-input-group {
+    .cash-fields {
         flex-direction: column;
-        align-items: stretch;
+    }
+
+    .cash-input-row {
+        flex-direction: row;
     }
     
     .form-row {

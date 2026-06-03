@@ -58,10 +58,26 @@
         <!-- 예수금 입력 섹션 -->
         <section class="cash-section">
             <h2>💰 예수금 관리</h2>
-            <div class="cash-input-group">
-                <input type="number" id="cash-input" placeholder="예수금 입력 (원)" min="0" step="1000">
-                <button onclick="updateCash()" class="btn btn-primary">예수금 업데이트</button>
+            <div class="cash-fields">
+                <div class="cash-field-group">
+                    <label for="cash-input-krw">원화 (KRW)</label>
+                    <div class="cash-input-row">
+                        <input type="text" id="cash-input-krw" placeholder="+1,000,000 또는 -500,000">
+                        <button onclick="updateCashKRW()" class="btn btn-primary">적용</button>
+                    </div>
+                </div>
+                <div class="cash-field-group">
+                    <label for="cash-input-usd">달러 (USD)</label>
+                    <div class="cash-input-row">
+                        <input type="text" id="cash-input-usd" placeholder="+1,000 또는 -500">
+                        <button onclick="updateCashUSD()" class="btn btn-primary">적용</button>
+                    </div>
+                </div>
+                <div style="align-self: flex-end;">
+                    <button onclick="resetCash()" class="btn btn-danger">초기화</button>
+                </div>
             </div>
+            <p class="cash-hint">💡 +금액: 추가 &nbsp;|&nbsp; -금액: 차감 &nbsp;|&nbsp; 숫자만: 절대값 설정</p>
         </section>
 
         <!-- 주식 추가 섹션 -->
