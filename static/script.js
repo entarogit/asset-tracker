@@ -211,6 +211,10 @@ async function loadAssetSummary() {
             const totalProfitElement = document.getElementById('total-profit-loss');
             totalProfitElement.textContent = formatCurrency(data.total_profit_loss);
             totalProfitElement.className = `amount profit-loss ${data.total_profit_loss >= 0 ? 'positive' : 'negative'}`;
+            const totalRateElement = document.getElementById('total-profit-rate');
+            const totalRate = data.total_profit_rate ?? 0;
+            totalRateElement.textContent = formatPercent(totalRate);
+            totalRateElement.className = `profit-rate profit-loss ${totalRate >= 0 ? 'positive' : 'negative'}`;
             if (data.exchange_rate) updateExchangeRateDisplay(data.exchange_rate);
         }
     } catch (error) {

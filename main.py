@@ -598,6 +598,7 @@ def get_asset_summary(current_user: User = Depends(get_current_user), db: Sessio
     user = db.query(User).filter(User.id == current_user.id).first()
     total_stock_value = 0
     total_profit_loss = 0
+    total_cost = 0
     current_rate = get_exchange_rate()
 
     for stock in user.stocks:
@@ -612,12 +613,16 @@ def get_asset_summary(current_user: User = Depends(get_current_user), db: Sessio
                 cost_krw = stock.avg_price * stock.quantity
             total_stock_value += current_value_krw
             total_profit_loss += current_value_krw - cost_krw
+            total_cost += cost_krw
+
+    total_profit_rate = (total_profit_loss / total_cost * 100) if total_cost > 0 else 0
 
     return {
         "total_stock_value": total_stock_value,
         "cash": user.cash,
         "total_asset": total_stock_value + user.cash,
         "total_profit_loss": total_profit_loss,
+        "total_profit_rate": total_profit_rate,
         "exchange_rate": current_rate
     }
 
