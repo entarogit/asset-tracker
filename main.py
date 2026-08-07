@@ -457,6 +457,12 @@ class StockUpdate(BaseModel):
     avg_price: Optional[float] = None
 
 
+class TradeRequest(BaseModel):
+    action: str    # 'buy'(추가매수) 또는 'sell'(매도)
+    quantity: float
+    price: float   # 1주당 단가
+
+
 # ── 페이지 라우트 ─────────────────────────────────────────────────────────────
 
 @app.get('/')
@@ -745,6 +751,107 @@ def delete_stock(
     db.delete(stock)
     db.commit()
     return {"message": f"{symbol} 주식이 삭제되었습니다"}
+
+
+@app.post('/api/portfolio/{stock_id}/trade')
+def trade_stock(
+    stock_id: int,
+    data: TradeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    stock = db.query(Stock).filter(Stock.id == stock_id, Stock.user_id == current_user.id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail={"error": "주식을 찾을 수 없습니다"})
+
+    action = data.action.strip().lower()
+    if action not in ('buy', 'sell'):
+        raise HTTPException(status_code=400, detail={"error": "action은 buy 또는 sell이어야 합니다"})
+
+    quantity = data.quantity
+    price = data.price
+    if quantity <= 0 or price <= 0:
+        raise HTTPException(status_code=400, detail={"error": "수량과 단가는 모두 0보다 커야 합니다"})
+
+    is_us = stock.market == 'us'
+    price_unit = '$' if is_us else '₩'
+    user = db.query(User).filter(User.id == current_user.id).first()
+
+    # 거래금액: 원화는 원 단위로 반올림 (기존 예수금 차감 로직과 동일한 방식)
+    amount = quantity * price
+    if not is_us:
+        amount = round(amount)
+
+    old_qty = stock.quantity
+    old_avg = (stock.avg_price_usd if is_us else stock.avg_price) or 0
+
+    if action == 'buy':
+        # 예수금 검증을 먼저 수행하고, 통과해야만 주식/예수금을 변경한다
+        balance = (user.cash_usd or 0.0) if is_us else (user.cash or 0.0)
+        if amount - balance > 1e-9:
+            raise HTTPException(status_code=400, detail={
+                "error": (f"예수금이 부족합니다. "
+                          f"필요 {price_unit}{amount:,.2f} / 보유 {price_unit}{balance:,.2f} / "
+                          f"부족 {price_unit}{amount - balance:,.2f}")
+            })
+
+        new_qty = old_qty + quantity
+        new_avg = (old_qty * old_avg + quantity * price) / new_qty
+        stock.quantity = new_qty
+        if is_us:
+            stock.avg_price_usd = new_avg
+            user.cash_usd = balance - amount
+            remaining = user.cash_usd
+        else:
+            stock.avg_price = new_avg
+            user.cash = balance - amount
+            remaining = user.cash
+
+        db.commit()
+        return {
+            "message": (f"{stock.symbol} {quantity}주를 {price_unit}{price:,.2f}에 추가매수했습니다. "
+                        f"(평단가 {price_unit}{new_avg:,.2f}, 보유수량 {new_qty}주, "
+                        f"잔여 예수금 {price_unit}{remaining:,.2f})"),
+            "sold_out": False,
+            "quantity": new_qty,
+            "avg_price": new_avg,
+            "remaining_cash": remaining,
+        }
+
+    else:  # sell
+        if quantity - old_qty > 1e-9:
+            raise HTTPException(status_code=400, detail={
+                "error": f"보유수량({old_qty}주)보다 많은 수량을 매도할 수 없습니다"
+            })
+
+        sold_out = (old_qty - quantity) <= 1e-9
+        balance = (user.cash_usd or 0.0) if is_us else (user.cash or 0.0)
+        symbol = stock.symbol
+
+        if sold_out:
+            db.delete(stock)
+            new_qty = 0
+        else:
+            new_qty = old_qty - quantity
+            stock.quantity = new_qty  # 부분매도: 평단가는 그대로 유지
+
+        if is_us:
+            user.cash_usd = balance + amount
+            remaining = user.cash_usd
+        else:
+            user.cash = balance + amount
+            remaining = user.cash
+
+        db.commit()
+        message = f"{symbol} {quantity}주를 {price_unit}{price:,.2f}에 매도했습니다. "
+        message += "전량 매도되어 보유 목록에서 삭제되었습니다. " if sold_out else f"(잔여수량 {new_qty}주) "
+        message += f"예수금에 {price_unit}{amount:,.2f}이(가) 추가되었습니다. (잔액 {price_unit}{remaining:,.2f})"
+        return {
+            "message": message,
+            "sold_out": sold_out,
+            "quantity": new_qty,
+            "remaining_cash": remaining,
+        }
 
 
 @app.post('/api/cash')

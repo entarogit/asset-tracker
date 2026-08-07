@@ -113,6 +113,26 @@ async function loadPortfolio() {
     }
 }
 
+// 종목 카드용 추가매수/매도 인라인 패널 HTML 생성
+function renderTradePanel(stock, isUS) {
+    const priceStep = isUS ? '0.0001' : '1';
+    return `
+        <div class="trade-panel" id="trade-panel-${stock.db_id}" style="display:none;">
+            <div class="trade-panel-title" id="trade-panel-title-${stock.db_id}"></div>
+            <div class="trade-panel-row">
+                <input type="number" id="trade-qty-${stock.db_id}" placeholder="수량" step="0.001" min="0.001" oninput="updateTradeTotal(${stock.db_id})">
+                <input type="number" id="trade-price-${stock.db_id}" placeholder="단가" step="${priceStep}" min="0" oninput="updateTradeTotal(${stock.db_id})">
+                <button type="button" class="btn btn-secondary trade-max-btn" id="trade-max-${stock.db_id}" onclick="fillMaxQuantity(${stock.db_id})" style="display:none;">전량</button>
+            </div>
+            <div class="trade-panel-total" id="trade-total-${stock.db_id}">총 거래금액: -</div>
+            <div class="trade-panel-actions">
+                <button type="button" class="btn btn-success" id="trade-confirm-${stock.db_id}" onclick="confirmTrade(${stock.db_id})">확인</button>
+                <button type="button" class="btn btn-secondary" onclick="closeTradePanel(${stock.db_id})">취소</button>
+            </div>
+        </div>
+    `;
+}
+
 // 포트폴리오 표시
 function displayPortfolio(data) {
     const grid = document.getElementById('portfolio-grid');
@@ -137,9 +157,14 @@ function displayPortfolio(data) {
                                 ${isUS ? '🇺🇸 미국' : '🇰🇷 한국'}
                             </span>
                         </div>
-                        <button onclick="deleteStock(${stock.db_id}, '${stock.symbol}')" class="btn btn-danger delete-btn">삭제</button>
+                        <div class="card-actions">
+                            <button onclick="openTradePanel(${stock.db_id}, 'buy')" class="btn btn-success buy-btn" id="buy-btn-${stock.db_id}">추가매수</button>
+                            <button onclick="openTradePanel(${stock.db_id}, 'sell')" class="btn btn-danger sell-btn" id="sell-btn-${stock.db_id}">매도</button>
+                            <button onclick="deleteStock(${stock.db_id}, '${stock.symbol}')" class="btn btn-danger delete-btn">삭제</button>
+                        </div>
                     </div>
                     <div class="error-message">${stock.error}</div>
+                    ${renderTradePanel(stock, isUS)}
                 </div>
             `;
         }
@@ -166,6 +191,8 @@ function displayPortfolio(data) {
                     </div>
                     <div class="card-actions">
                         <button onclick="openChart('${stock.symbol}', '${stock.market}')" class="btn btn-chart">차트</button>
+                        <button onclick="openTradePanel(${stock.db_id}, 'buy')" class="btn btn-success buy-btn" id="buy-btn-${stock.db_id}">추가매수</button>
+                        <button onclick="openTradePanel(${stock.db_id}, 'sell')" class="btn btn-danger sell-btn" id="sell-btn-${stock.db_id}">매도</button>
                         <button onclick="toggleEditStock(${stock.db_id})" class="btn btn-secondary edit-btn" id="edit-btn-${stock.db_id}">수정</button>
                         <button onclick="deleteStock(${stock.db_id}, '${stock.symbol}')" class="btn btn-danger delete-btn">삭제</button>
                     </div>
@@ -198,6 +225,7 @@ function displayPortfolio(data) {
                     </div>
                     ${isUS ? `<div class="exchange-info"><small>환율: ${stock.exchange_rate?.toFixed(2) || 'N/A'} 원/달러</small></div>` : ''}
                 </div>
+                ${renderTradePanel(stock, isUS)}
             </div>
         `;
     }).join('');
@@ -346,10 +374,160 @@ function openChart(symbol, market) {
     window.open(url, '_blank');
 }
 
+// 카드별로 열려있는 추가매수/매도 패널의 모드('buy' | 'sell')를 저장
+const tradeMode = {};
+
+// 추가매수/매도 인라인 패널 열기
+function openTradePanel(stockId, mode) {
+    const card = document.getElementById(`stock-card-${stockId}`);
+    if (card && card.classList.contains('editing')) {
+        showNotification('수정 중에는 거래를 진행할 수 없습니다. 수정을 완료해주세요.', 'error');
+        return;
+    }
+    const stock = portfolio.stocks.find(s => s.db_id === stockId);
+    if (!stock) return;
+    const isUS = stock.market === 'us';
+
+    tradeMode[stockId] = mode;
+
+    const panel = document.getElementById(`trade-panel-${stockId}`);
+    const title = document.getElementById(`trade-panel-title-${stockId}`);
+    const maxBtn = document.getElementById(`trade-max-${stockId}`);
+    const qtyInput = document.getElementById(`trade-qty-${stockId}`);
+    const priceInput = document.getElementById(`trade-price-${stockId}`);
+    const confirmBtn = document.getElementById(`trade-confirm-${stockId}`);
+
+    title.textContent = mode === 'buy' ? `${stock.symbol} 추가매수` : `${stock.symbol} 매도`;
+    confirmBtn.textContent = mode === 'buy' ? '매수 확인' : '매도 확인';
+    confirmBtn.classList.remove('btn-success', 'btn-danger');
+    confirmBtn.classList.add(mode === 'buy' ? 'btn-success' : 'btn-danger');
+    maxBtn.style.display = mode === 'sell' ? '' : 'none';
+
+    qtyInput.value = '';
+    const currentPrice = isUS ? stock.current_price_usd : stock.current_price;
+    priceInput.value = (currentPrice ?? '') === '' ? '' : currentPrice;
+
+    panel.style.display = '';
+    document.getElementById(`buy-btn-${stockId}`).disabled = true;
+    document.getElementById(`sell-btn-${stockId}`).disabled = true;
+    updateTradeTotal(stockId);
+    qtyInput.focus();
+}
+
+// 추가매수/매도 인라인 패널 닫기
+function closeTradePanel(stockId) {
+    const panel = document.getElementById(`trade-panel-${stockId}`);
+    if (panel) panel.style.display = 'none';
+    const buyBtn = document.getElementById(`buy-btn-${stockId}`);
+    const sellBtn = document.getElementById(`sell-btn-${stockId}`);
+    if (buyBtn) buyBtn.disabled = false;
+    if (sellBtn) sellBtn.disabled = false;
+    delete tradeMode[stockId];
+}
+
+// 매도 패널의 수량란을 보유수량 전체로 채우기 (전량매도 UX)
+function fillMaxQuantity(stockId) {
+    const stock = portfolio.stocks.find(s => s.db_id === stockId);
+    if (!stock) return;
+    document.getElementById(`trade-qty-${stockId}`).value = stock.quantity;
+    updateTradeTotal(stockId);
+}
+
+// 입력한 수량×단가로 총 거래금액을 실시간 계산해 표시
+function updateTradeTotal(stockId) {
+    const stock = portfolio.stocks.find(s => s.db_id === stockId);
+    const totalEl = document.getElementById(`trade-total-${stockId}`);
+    if (!stock || !totalEl) return;
+    const isUS = stock.market === 'us';
+    const qty = parseFloat(document.getElementById(`trade-qty-${stockId}`).value);
+    const price = parseFloat(document.getElementById(`trade-price-${stockId}`).value);
+    if (!qty || !price || qty <= 0 || price <= 0) {
+        totalEl.textContent = '총 거래금액: -';
+        return;
+    }
+    const amount = isUS ? qty * price : Math.round(qty * price);
+    const fmt = isUS ? formatUSD : formatCurrency;
+    totalEl.textContent = `총 거래금액: ${fmt(amount)}`;
+}
+
+// 추가매수/매도 실행 (서버 검증은 그대로 유지하고, 클라이언트에서도 선검사)
+async function confirmTrade(stockId) {
+    if (isLoading) return;
+    const mode = tradeMode[stockId];
+    const stock = portfolio.stocks.find(s => s.db_id === stockId);
+    if (!stock || !mode) return;
+
+    const isUS = stock.market === 'us';
+    const fmt = isUS ? formatUSD : formatCurrency;
+    const quantity = parseFloat(document.getElementById(`trade-qty-${stockId}`).value);
+    const price = parseFloat(document.getElementById(`trade-price-${stockId}`).value);
+
+    if (!quantity || quantity <= 0) { showNotification('올바른 수량을 입력해주세요.', 'error'); return; }
+    if (!price || price <= 0) { showNotification('올바른 단가를 입력해주세요.', 'error'); return; }
+
+    const amount = isUS ? quantity * price : Math.round(quantity * price);
+    const balance = (isUS ? portfolio.cash_usd : portfolio.cash) || 0;
+
+    if (mode === 'buy') {
+        if (amount > balance) {
+            showNotification(
+                `${isUS ? '달러' : '원화'} 예수금이 부족합니다. 필요 ${fmt(amount)} / 보유 ${fmt(balance)}`,
+                'error'
+            );
+            return;
+        }
+        const ok = confirm(
+            `${stock.symbol} ${quantity}주를 ${fmt(price)}에 추가매수합니다.\n\n` +
+            `총 거래금액: ${fmt(amount)}\n` +
+            `현재 예수금: ${fmt(balance)}\n차감 후 예수금: ${fmt(balance - amount)}\n\n계속하시겠습니까?`
+        );
+        if (!ok) return;
+    } else {
+        if (quantity - stock.quantity > 1e-9) {
+            showNotification(`보유수량(${stock.quantity}주)보다 많은 수량을 매도할 수 없습니다.`, 'error');
+            return;
+        }
+        const soldOut = (stock.quantity - quantity) <= 1e-9;
+        const ok = confirm(
+            `${stock.symbol} ${quantity}주를 ${fmt(price)}에 매도합니다.` +
+            (soldOut ? ' (전량매도 - 보유목록에서 삭제됩니다)' : '') + `\n\n` +
+            `총 거래금액: ${fmt(amount)}\n` +
+            `현재 예수금: ${fmt(balance)}\n매도 후 예수금: ${fmt(balance + amount)}\n\n계속하시겠습니까?`
+        );
+        if (!ok) return;
+    }
+
+    showLoading();
+    try {
+        const response = await fetch(`/api/portfolio/${stockId}/trade`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: mode, quantity, price })
+        });
+        if (handleAuthError(response)) return;
+        const data = await response.json();
+        if (response.ok) {
+            showNotification(data.message || '거래가 완료되었습니다.', 'success');
+            delete tradeMode[stockId];
+            await Promise.all([loadPortfolio(), loadAssetSummary()]);
+        } else {
+            showNotification(data.error || '거래에 실패했습니다.', 'error');
+        }
+    } catch (error) {
+        showNotification('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 // 주식 수정 모드 토글
 function toggleEditStock(stockId) {
     const card = document.getElementById(`stock-card-${stockId}`);
     const editBtn = document.getElementById(`edit-btn-${stockId}`);
+    if (tradeMode[stockId]) {
+        showNotification('거래 진행 중에는 수정할 수 없습니다. 거래를 취소해주세요.', 'error');
+        return;
+    }
     if (card.classList.contains('editing')) {
         saveStock(stockId);
     } else {
@@ -527,6 +705,12 @@ document.addEventListener('keypress', function(event) {
         if (event.target.id === 'cash-input-usd') {
             event.preventDefault();
             updateCashUSD();
+        }
+        // 추가매수/매도 패널의 수량·단가 입력란에서 Enter 시 확인 실행
+        if (event.target.id.startsWith('trade-qty-') || event.target.id.startsWith('trade-price-')) {
+            event.preventDefault();
+            const stockId = parseInt(event.target.id.split('-').pop(), 10);
+            confirmTrade(stockId);
         }
     }
 });
