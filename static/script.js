@@ -485,10 +485,16 @@ async function updateCashUSD() {
     document.getElementById('cash-input-usd').value = '';
 }
 
-// 예수금 전체 초기화
-async function resetCash() {
-    if (!confirm('원화/달러 예수금을 모두 0으로 초기화하시겠습니까?')) return;
-    await setCash(0, 0);
+// 원화 예수금 초기화
+async function resetCashKRW() {
+    if (!confirm('원화 예수금을 0원으로 초기화하시겠습니까?')) return;
+    await setCash(0, undefined);
+}
+
+// 달러 예수금 초기화
+async function resetCashUSD() {
+    if (!confirm('달러 예수금을 $0으로 초기화하시겠습니까?')) return;
+    await setCash(undefined, 0);
 }
 
 // 포트폴리오 새로고침

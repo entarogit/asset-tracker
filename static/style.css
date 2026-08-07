@@ -425,6 +425,12 @@ section h2 {
     flex: 1;
 }
 
+.cash-reset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
 .cash-hint {
     margin-top: 12px;
     font-size: 0.82rem;
