@@ -272,8 +272,8 @@ async function loadExchangeRate() {
     }
 }
 
-// 주식 추가
-async function addStock() {
+// 주식 추가 (deductCash=true면 매입금액만큼 예수금에서 차감)
+async function addStock(deductCash = false) {
     if (isLoading) return;
 
     const market = document.getElementById('stock-market').value;
@@ -285,17 +285,40 @@ async function addStock() {
     if (!quantity || quantity <= 0) { showNotification('올바른 수량을 입력해주세요.', 'error'); return; }
     if (!avgPrice || avgPrice <= 0) { showNotification('올바른 평단가를 입력해주세요.', 'error'); return; }
 
+    if (deductCash) {
+        const isUS = market === 'us';
+        const cost = isUS ? quantity * avgPrice : Math.round(quantity * avgPrice);
+        const balance = (isUS ? portfolio.cash_usd : portfolio.cash) || 0;
+        const fmt = isUS ? formatUSD : formatCurrency;
+        if (cost > balance) {
+            showNotification(
+                `${isUS ? '달러' : '원화'} 예수금이 부족합니다. 필요 ${fmt(cost)} / 보유 ${fmt(balance)}`,
+                'error'
+            );
+            return;
+        }
+        const ok = confirm(
+            `${symbol} ${quantity}주를 추가하고, 매입금액 ${fmt(cost)}을(를) ` +
+            `${isUS ? '달러' : '원화'} 예수금에서 차감합니다.\n\n` +
+            `현재 예수금: ${fmt(balance)}\n차감 후 예수금: ${fmt(balance - cost)}\n\n계속하시겠습니까?`
+        );
+        if (!ok) return;
+    }
+
     showLoading();
     try {
         const response = await fetch('/api/portfolio', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol, market, quantity, avg_price: avgPrice })
+            body: JSON.stringify({ symbol, market, quantity, avg_price: avgPrice, deduct_cash: deductCash })
         });
         if (handleAuthError(response)) return;
         const data = await response.json();
         if (response.ok) {
-            showNotification(data.merged ? data.message : '주식이 성공적으로 추가되었습니다.', 'success');
+            showNotification(
+                (deductCash || data.merged) ? data.message : '주식이 성공적으로 추가되었습니다.',
+                'success'
+            );
             document.getElementById('stock-symbol').value = '';
             document.getElementById('stock-quantity').value = '';
             document.getElementById('stock-avg-price').value = '';
@@ -486,7 +509,8 @@ document.addEventListener('keypress', function(event) {
             event.preventDefault();
             return;
         }
-        if (event.target.closest('.add-stock-form')) {
+        // 버튼은 자체 onclick으로 처리되므로 제외 (중복 호출 방지)
+        if (event.target.closest('.add-stock-form') && event.target.tagName !== 'BUTTON') {
             event.preventDefault();
             addStock();
         }

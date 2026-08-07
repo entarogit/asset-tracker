@@ -481,6 +481,12 @@ section h2 {
     gap: 20px;
 }
 
+.add-stock-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
 .form-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

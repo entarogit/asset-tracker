@@ -444,6 +444,7 @@ class StockCreate(BaseModel):
     quantity: float
     market: str = 'kr'
     avg_price: float = 0.0
+    deduct_cash: bool = False  # True면 매입금액만큼 예수금에서 차감
 
 
 class CashUpdate(BaseModel):
@@ -640,6 +641,27 @@ def add_stock(
     new_quantity = data.quantity
     new_market = data.market.lower()
     new_avg_price = data.avg_price
+    is_us = new_market == 'us'
+    price_unit = '$' if is_us else '₩'
+
+    user = db.query(User).filter(User.id == current_user.id).first()
+
+    # 예수금 차감 요청이면 잔액을 먼저 검증한다 (부족하면 주식도 추가하지 않음)
+    cost = new_quantity * new_avg_price
+    if not is_us:
+        cost = round(cost)  # 원화 예수금은 원 단위로 관리
+    if data.deduct_cash:
+        if cost <= 0:
+            raise HTTPException(status_code=400, detail={
+                "error": "수량과 평단가가 모두 0보다 커야 예수금에서 차감할 수 있습니다"
+            })
+        balance = (user.cash_usd or 0.0) if is_us else (user.cash or 0.0)
+        if cost - balance > 1e-9:
+            raise HTTPException(status_code=400, detail={
+                "error": (f"예수금이 부족합니다. "
+                          f"필요 {price_unit}{cost:,.2f} / 보유 {price_unit}{balance:,.2f} / "
+                          f"부족 {price_unit}{cost - balance:,.2f}")
+            })
 
     existing = db.query(Stock).filter(
         Stock.user_id == current_user.id,
@@ -649,31 +671,44 @@ def add_stock(
 
     if existing:
         total_qty = existing.quantity + new_quantity
-        if new_market == 'us':
+        if is_us:
             merged_avg = (existing.quantity * existing.avg_price_usd + new_quantity * new_avg_price) / total_qty
             existing.avg_price_usd = merged_avg
         else:
             merged_avg = (existing.quantity * existing.avg_price + new_quantity * new_avg_price) / total_qty
             existing.avg_price = merged_avg
         existing.quantity = total_qty
-        db.commit()
-        price_unit = '$' if new_market == 'us' else '₩'
-        return {
+        result = {
             "message": f"{new_symbol} 종목이 기존 보유분과 합산되었습니다. (총 {total_qty}주, 평단가 {price_unit}{merged_avg:,.2f})",
             "merged": True
         }
+    else:
+        db.add(Stock(
+            user_id=current_user.id,
+            symbol=new_symbol,
+            quantity=new_quantity,
+            market=new_market,
+            avg_price=new_avg_price if not is_us else None,
+            avg_price_usd=new_avg_price if is_us else None
+        ))
+        result = {"message": "주식이 추가되었습니다", "merged": False}
 
-    new_stock = Stock(
-        user_id=current_user.id,
-        symbol=new_symbol,
-        quantity=new_quantity,
-        market=new_market,
-        avg_price=new_avg_price if new_market == 'kr' else None,
-        avg_price_usd=new_avg_price if new_market == 'us' else None
-    )
-    db.add(new_stock)
+    # 주식 추가와 예수금 차감을 같은 트랜잭션으로 커밋한다
+    if data.deduct_cash:
+        if is_us:
+            user.cash_usd = (user.cash_usd or 0.0) - cost
+            remaining = user.cash_usd
+        else:
+            user.cash = (user.cash or 0.0) - cost
+            remaining = user.cash
+        result["message"] += (f" 예수금에서 {price_unit}{cost:,.2f}이(가) 차감되었습니다. "
+                              f"(잔액 {price_unit}{remaining:,.2f})")
+        result["cash_deducted"] = cost
+        result["cash_currency"] = 'USD' if is_us else 'KRW'
+        result["remaining_cash"] = remaining
+
     db.commit()
-    return {"message": "주식이 추가되었습니다", "merged": False}
+    return result
 
 
 @app.patch('/api/portfolio/{stock_id}')

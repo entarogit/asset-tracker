@@ -123,7 +123,11 @@
                         <input type="number" id="stock-avg-price" placeholder="매입 평균 단가" min="0" step="0.01">
                     </div>
                 </div>
-                <button onclick="addStock()" class="btn btn-success">주식 추가</button>
+                <div class="add-stock-actions">
+                    <button onclick="addStock()" class="btn btn-success">주식 추가</button>
+                    <button onclick="addStock(true)" class="btn btn-primary">💸 예수금에서 차감 후 주식 추가</button>
+                </div>
+                <p class="cash-hint">💡 차감 버튼은 <strong>수량 × 평단가</strong>만큼 예수금에서 빼고 주식을 추가합니다. 한국 주식은 원화, 미국 주식은 달러 예수금에서 차감됩니다.</p>
             </div>
         </section>
 
