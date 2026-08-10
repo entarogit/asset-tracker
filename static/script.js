@@ -16,7 +16,41 @@ document.addEventListener('DOMContentLoaded', function() {
     loadAssetSummary();
     loadExchangeRate();
     initAutocomplete();
+    initScrollReveal();
 });
+
+// 섹션 스크롤 진입 애니메이션
+// 애니메이션은 어디까지나 장식이므로, 어떤 이유로든 실패해도 콘텐츠는 반드시 보여야 한다.
+// (1) IntersectionObserver 미지원 시 아예 숨기지 않고 (2) 오류가 나면 되돌리고
+// (3) 그래도 남는 경우를 대비해 타이머로 전부 표시한다.
+function initScrollReveal() {
+    const targets = document.querySelectorAll('[data-reveal]');
+    if (!targets.length || !('IntersectionObserver' in window)) return;
+
+    const revealAll = () => targets.forEach(el => el.classList.add('revealed'));
+
+    try {
+        document.documentElement.classList.add('reveal-ready');
+        // threshold는 0으로 둔다. 보유 종목이 많아 섹션이 뷰포트보다 훨씬 길어지면
+        // 교차 "비율"은 계속 작게 유지되어 임계값에 도달하지 못할 수 있다.
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('revealed');
+                observer.unobserve(entry.target);
+            });
+        }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+
+        targets.forEach(el => observer.observe(el));
+    } catch (error) {
+        console.error('스크롤 애니메이션 초기화 실패:', error);
+        document.documentElement.classList.remove('reveal-ready');
+        return;
+    }
+
+    // 안전장치: 관찰자가 어떤 이유로든 동작하지 않아도 콘텐츠가 영구히 가려지지 않도록 한다
+    setTimeout(revealAll, 4000);
+}
 
 // 로딩 오버레이 표시/숨김
 function showLoading(show = true) {

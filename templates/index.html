@@ -3,64 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>자산 트래킹 - 포트폴리오 관리</title>
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)">
+    <meta name="description" content="한국·미국 주식과 원화·달러 예수금을 한곳에서 관리하는 실시간 포트폴리오 트래커입니다.">
+    <title>자산 트래킹 · 포트폴리오 관리</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-main">
-                <div>
-                    <h1>📊 자산 트래킹</h1>
-                    <p class="subtitle">실시간 포트폴리오 관리</p>
-                </div>
-                <div class="user-info" id="user-info">
-                    <img class="user-avatar" id="user-avatar" src="" alt="프로필" style="display:none;">
-                    <div class="user-details">
-                        <span class="user-name" id="user-name">불러오는 중...</span>
-                        <span class="user-email" id="user-email"></span>
-                    </div>
-                    <a href="/auth/logout" class="btn btn-logout" style="border-radius:50px;">로그아웃</a>
-                </div>
+    <header>
+        <nav class="header-main">
+            <div>
+                <h1>📊 자산 트래킹</h1>
+                <p class="subtitle">실시간 포트폴리오 관리</p>
             </div>
-        </header>
+            <div class="user-info" id="user-info">
+                <img class="user-avatar" id="user-avatar" src="" alt="프로필 사진" style="display:none;">
+                <div class="user-details">
+                    <span class="user-name" id="user-name">불러오는 중…</span>
+                    <span class="user-email" id="user-email"></span>
+                </div>
+                <a href="/auth/logout" class="btn btn-logout">로그아웃</a>
+            </div>
+        </nav>
+    </header>
 
+    <main class="container">
         <!-- 자산 요약 섹션 -->
-        <section class="asset-summary">
+        <section class="asset-summary" aria-label="자산 요약">
             <div class="summary-cards">
-                <div class="summary-card">
+                <article class="summary-card" data-reveal style="--reveal-index:0">
                     <h3>총 자산</h3>
                     <p class="amount" id="total-asset">₩0</p>
-                </div>
-                <div class="summary-card">
+                </article>
+                <article class="summary-card" data-reveal style="--reveal-index:1">
                     <h3>주식 평가액</h3>
                     <p class="amount" id="stock-value">₩0</p>
-                </div>
-                <div class="summary-card">
+                </article>
+                <article class="summary-card" data-reveal style="--reveal-index:2">
                     <h3>예수금</h3>
                     <p class="amount" id="cash-amount">₩0</p>
                     <div class="cash-breakdown">
                         <span>원화 <strong id="cash-krw-display">₩0</strong></span>
                         <span>달러 <strong id="cash-usd-display">$0</strong></span>
                     </div>
-                </div>
-                <div class="summary-card">
+                </article>
+                <article class="summary-card" data-reveal style="--reveal-index:3">
                     <h3>총 손익</h3>
                     <p class="amount profit-loss" id="total-profit-loss">₩0</p>
                     <p class="profit-rate profit-loss" id="total-profit-rate">0.00%</p>
-                </div>
+                </article>
             </div>
 
             <!-- 환율 정보 표시 -->
-            <div class="exchange-rate-info">
-                <span class="exchange-label">💱 USD/KRW 실시간 환율:</span>
+            <div class="exchange-rate-info" data-reveal style="--reveal-index:4">
+                <span class="exchange-label">💱 USD/KRW 실시간 환율</span>
                 <span class="exchange-value" id="exchange-rate">₩1,320</span>
                 <span class="exchange-status" id="exchange-status"></span>
             </div>
         </section>
 
         <!-- 예수금 입력 섹션 -->
-        <section class="cash-section">
+        <section class="cash-section" data-reveal>
             <h2>💰 예수금 관리</h2>
             <div class="cash-current-display">
                 <div class="cash-current-item">
@@ -77,14 +83,14 @@
                 <div class="cash-field-group">
                     <label for="cash-input-krw">원화 (KRW)</label>
                     <div class="cash-input-row">
-                        <input type="text" id="cash-input-krw" placeholder="+1,000,000 또는 -500,000">
+                        <input type="text" id="cash-input-krw" placeholder="+1,000,000 또는 -500,000" inputmode="decimal">
                         <button onclick="updateCashKRW()" class="btn btn-primary">적용</button>
                     </div>
                 </div>
                 <div class="cash-field-group">
                     <label for="cash-input-usd">달러 (USD)</label>
                     <div class="cash-input-row">
-                        <input type="text" id="cash-input-usd" placeholder="+1,000 또는 -500">
+                        <input type="text" id="cash-input-usd" placeholder="+1,000 또는 -500" inputmode="decimal">
                         <button onclick="updateCashUSD()" class="btn btn-primary">적용</button>
                     </div>
                 </div>
@@ -93,11 +99,11 @@
                     <button onclick="resetCashUSD()" class="btn btn-danger">달러 초기화</button>
                 </div>
             </div>
-            <p class="cash-hint">💡 +금액: 추가 &nbsp;|&nbsp; -금액: 차감 &nbsp;|&nbsp; 숫자만: 절대값 설정</p>
+            <p class="cash-hint">💡 <strong>+금액</strong>은 추가, <strong>-금액</strong>은 차감, 숫자만 입력하면 해당 값으로 설정됩니다.</p>
         </section>
 
         <!-- 주식 추가 섹션 -->
-        <section class="add-stock-section">
+        <section class="add-stock-section" data-reveal>
             <h2>➕ 주식 추가</h2>
             <div class="add-stock-form">
                 <div class="form-row">
@@ -109,7 +115,7 @@
                         </select>
                     </div>
                     <div class="form-group autocomplete-wrapper">
-                        <label for="stock-symbol">종목명/티커</label>
+                        <label for="stock-symbol">종목명 / 티커</label>
                         <input type="text" id="stock-symbol" placeholder="예: 삼성전자, AAPL" autocomplete="off">
                         <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
                     </div>
@@ -126,32 +132,32 @@
                 </div>
                 <div class="add-stock-actions">
                     <button onclick="addStock()" class="btn btn-success">주식 추가</button>
-                    <button onclick="addStock(true)" class="btn btn-primary">💸 예수금에서 차감 후 주식 추가</button>
+                    <button onclick="addStock(true)" class="btn btn-secondary">💸 예수금에서 차감 후 추가</button>
                 </div>
                 <p class="cash-hint">💡 차감 버튼은 <strong>수량 × 평단가</strong>만큼 예수금에서 빼고 주식을 추가합니다. 한국 주식은 원화, 미국 주식은 달러 예수금에서 차감됩니다.</p>
             </div>
         </section>
 
         <!-- 포트폴리오 섹션 -->
-        <section class="portfolio-section">
+        <section class="portfolio-section" data-reveal>
             <h2>📈 보유 주식 현황</h2>
             <div class="portfolio-actions">
                 <button onclick="refreshPortfolio()" class="btn btn-secondary">🔄 새로고침</button>
             </div>
             <div class="portfolio-grid" id="portfolio-grid">
-                <div class="loading">포트폴리오를 불러오는 중...</div>
+                <div class="loading">포트폴리오를 불러오는 중…</div>
             </div>
         </section>
-    </div>
+    </main>
 
     <!-- 로딩 오버레이 -->
-    <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-overlay" id="loading-overlay" role="status" aria-live="polite">
         <div class="spinner"></div>
-        <p>데이터를 처리하는 중...</p>
+        <p>처리하는 중…</p>
     </div>
 
     <!-- 알림 메시지 -->
-    <div class="notification" id="notification"></div>
+    <div class="notification" id="notification" role="status" aria-live="polite"></div>
 
     <script src="/static/script.js"></script>
 </body>
