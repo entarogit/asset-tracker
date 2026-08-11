@@ -4,12 +4,14 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
+    color-scheme: light;
+
     /* 배경 / 표면 */
-    --bg: #f5f5f7;
+    --bg: #fbfbfd;
     --bg-elevated: #ffffff;
     --surface: #ffffff;
     --surface-sunken: #f5f5f7;
-    --surface-hover: #fafafa;
+    --surface-hover: #f5f5f7;
 
     /* 텍스트 */
     --text: #1d1d1f;
@@ -52,36 +54,8 @@
     --container: 1120px;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #0b0b0d;
-        --bg-elevated: #1c1c1e;
-        --surface: #1c1c1e;
-        --surface-sunken: #262629;
-        --surface-hover: #232326;
-
-        --text: #f5f5f7;
-        --text-secondary: #a1a1a6;
-        --text-tertiary: #86868b;
-
-        --border: rgba(255, 255, 255, 0.1);
-        --border-strong: rgba(255, 255, 255, 0.18);
-
-        --accent: #0a84ff;
-        --accent-hover: #339dff;
-        --accent-active: #0a6fd6;
-        --accent-soft: rgba(10, 132, 255, 0.16);
-
-        --up: #30d158;
-        --up-soft: rgba(48, 209, 88, 0.14);
-        --down: #ff453a;
-        --down-soft: rgba(255, 69, 58, 0.14);
-
-        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-        --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.5);
-        --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px -8px rgba(0, 0, 0, 0.6);
-    }
-}
+/* 이 앱은 라이트 톤으로 고정한다. OS가 다크 모드여도 밝은 화면을 유지하며,
+   폼 컨트롤·스크롤바 같은 브라우저 기본 UI도 라이트로 그리도록 선언한다. */
 
 /* ── 기본 ─────────────────────────────────────────────────────────────────── */
 
@@ -290,28 +264,14 @@ section h2 {
     transform: translateY(-2px);
 }
 
-/* 총 자산은 대표 지표 — 전폭으로, 가장 크게 */
+/* 총 자산은 대표 지표 — 전폭으로, 가장 크게.
+   색을 어둡게 깔지 않고 흰 표면 위에서 크기와 여백만으로 위계를 만든다. */
 .summary-card:first-child {
     grid-column: 1 / -1;
-    background: var(--text);
-    border-color: transparent;
-    color: var(--bg-elevated);
-    padding: 32px;
-}
-
-.summary-card:first-child h3 {
-    color: rgba(255, 255, 255, 0.62);
-}
-
-@media (prefers-color-scheme: dark) {
-    .summary-card:first-child {
-        background: linear-gradient(150deg, #2c2c31 0%, #1a1a1d 100%);
-        border-color: var(--border-strong);
-        color: var(--text);
-    }
-    .summary-card:first-child h3 {
-        color: var(--text-secondary);
-    }
+    background:
+        radial-gradient(120% 140% at 100% 0%, var(--accent-soft) 0%, transparent 58%),
+        var(--surface);
+    padding: 36px 32px;
 }
 
 .summary-card:first-child .amount {
@@ -971,14 +931,9 @@ select {
     transform: translate(-50%, 0);
 }
 
+/* 토스트는 밝은 화면 위에 잠깐 떠서 눈에 띄어야 하므로 진한 배경을 유지한다 */
 .notification.success { background: var(--up); color: #fff; }
 .notification.error   { background: var(--down); color: #fff; }
-
-@media (prefers-color-scheme: dark) {
-    .notification { background: #f5f5f7; color: #1d1d1f; }
-    .notification.success,
-    .notification.error { color: #fff; }
-}
 
 /* ── 스크롤 진입 애니메이션 (JS 활성화 시에만 적용) ───────────────────────── */
 
@@ -1096,21 +1051,21 @@ select {
     gap: 10px;
     width: 100%;
     padding: 15px 24px;
-    background: var(--text);
-    color: var(--bg-elevated);
+    background: var(--accent);
+    color: #fff;
     border: 1px solid transparent;
     border-radius: 980px;
     font-size: 1rem;
     font-weight: 500;
     letter-spacing: -0.01em;
     margin-bottom: 20px;
-    transition: transform var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast);
+    transition: background-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast);
 }
 
 .google-login-btn:hover {
+    background: var(--accent-hover);
     transform: scale(1.02);
     box-shadow: var(--shadow-md);
-    opacity: 0.92;
 }
 
 .google-login-btn:active {
